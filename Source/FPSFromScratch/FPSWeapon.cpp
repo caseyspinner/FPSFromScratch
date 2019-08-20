@@ -247,7 +247,7 @@ void AFPSWeapon::PlayFireWeaponEffects()
 		if (MuzzleFlashParticles)
 		{
 
-			/* We will be scaling it down (by a hardcoded value for now) */
+			/* We will be scaling it down (by a hard coded value for now) */
 			FVector MuzzleFlashScale(0.05f, 0.05f, 0.05f);
 
 			/* The muzzle flash will be pointed in the same direction as the muzzle */
@@ -377,6 +377,13 @@ void AFPSWeapon::AddRecoil()
 
 		PlayerController->SetControlRotation(NewRotation);
 	}
+}
+
+FRotator AFPSWeapon::GetRecoilToAdd()
+{
+	/*if (TotalRecoilAdded >= (FRotator())
+	{
+	}*/
 }
 
 // On Tick

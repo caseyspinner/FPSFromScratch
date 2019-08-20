@@ -196,6 +196,9 @@ public:
 	/// On shot
 	void AddRecoil();
 
+	/* This is what will give us a recoil pattern. Based on the current total recoil added, we essentially know where we are in the recoil pattern and can find out how much recoil should be applied to the next shot fired. */
+	FRotator GetRecoilToAdd();
+
 	// On Tick
 	void CheckIfRecoilFinishedCompensating();
 
