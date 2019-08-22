@@ -139,7 +139,17 @@ public:
 	bool bFinishedCompensatingRecoil;
 
 	FRotator TotalRecoilAdded;
-	
+
+	///////// WEAPON ACCURACY //////////////////////
+
+	/* Half angle of the cone encompassing the weapon spread on first shot. The first shot will land somewhere within the cone of this half-angle in radians.  */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay | Accuracy")
+	float FirstShotBaseSpread;
+
+	/* Cheat for no spread */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay | Cheats")
+	bool bWeaponHasNoSpread;
+
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
@@ -186,24 +196,24 @@ public:
 
 	//////////////// WEAPON RECOIL ////////////////////////
 
-	void AddCameraRecoilImpulse(float RecoilMagnitude);
-
-	void AdjustCameraPitchForRecoil(float DeltaTime);
-
+	// On Tick - INACTIVE - May revisit later for recoil smoothing
 	void HandleCameraRecoilRecovery(float RecoveryRate, float DeltaTime);
 
-	///
 	/// On shot
 	void AddRecoil();
 
 	/* This is what will give us a recoil pattern. Based on the current total recoil added, we essentially know where we are in the recoil pattern and can find out how much recoil should be applied to the next shot fired. */
-	FRotator GetRecoilToAdd();
+	// FRotator GetRecoilToAdd();
 
 	// On Tick
 	void CheckIfRecoilFinishedCompensating();
 
 	// On Tick
 	void RecoverRecoil(float DeltaTime);
+
+	///////////////// WEAPON ACCURACY /////////////////////////////
+
+	FVector GetForwardVectorWithSpread(FVector ForwardVector);
 
 	/**
 	 * This is mainly for showing how traces function for the firing of

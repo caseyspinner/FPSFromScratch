@@ -11,6 +11,7 @@
 #include "Camera/CameraComponent.h"
 #include "TimerManager.h"
 #include "Engine.h"
+#include "Math/RandomStream.h"
 
 // Sets default values
 AFPSWeapon::AFPSWeapon()
@@ -51,6 +52,10 @@ AFPSWeapon::AFPSWeapon()
 	//
 	bFinishedCompensatingRecoil = true;
 	TotalRecoilAdded = FRotator(0.f, 0.f, 0.f);
+
+	// The first shot base spread in radians
+	FirstShotBaseSpread = 0.005f;
+	bWeaponHasNoSpread = false;
 }
 
 // Called when the game starts or when spawned
@@ -136,13 +141,12 @@ void AFPSWeapon::OnFire()
 	{
 		PlayFireWeaponEffects();
 		StartWeaponTrace();
+
 		if (!bUnlimitedAmmo)
 		{
 			ConsumeAmmo();
 		}
 		
-		//AddCameraRecoilImpulse(RecoilAmount);
-
 		AddRecoil();
 
 		// Record the fact that we fired a shot via updating the LastFireTime
@@ -191,11 +195,14 @@ void AFPSWeapon::StartWeaponTrace()
 
 			UE_LOG(LogTemp, Warning, TEXT("ForwardVectorLocation is %s"), *ForwardVectorLocationString);*/
 
+			// We add inaccuracy to our forward vector
+			FVector ForwardVectorWithSpread = GetForwardVectorWithSpread(CameraForwardVector);
+
 			/**
 			 * Now we will multiply the vector by some scalar to designate the length
 			 * or distance that we want the vector to extend to.
 			 */
-			FVector TraceEndLocation = TraceStartLocation + CameraForwardVector * 3000;
+			FVector TraceEndLocation = TraceStartLocation + ForwardVectorWithSpread * 3000;
 
 			/**
 			 * Now we do our trace from the start location to the end location.
@@ -379,12 +386,12 @@ void AFPSWeapon::AddRecoil()
 	}
 }
 
-FRotator AFPSWeapon::GetRecoilToAdd()
-{
-	/*if (TotalRecoilAdded >= (FRotator())
-	{
-	}*/
-}
+//FRotator AFPSWeapon::GetRecoilToAdd()
+//{
+//	/*if (TotalRecoilAdded >= (FRotator())
+//	{
+//	}*/
+//}
 
 // On Tick
 void AFPSWeapon::CheckIfRecoilFinishedCompensating()
@@ -450,6 +457,16 @@ void AFPSWeapon::RecoverRecoil(float DeltaTime)
 	{
 		TotalRecoilAdded = FRotator(0.f, 0.f, 0.f);
 	}
+}
+
+FVector AFPSWeapon::GetForwardVectorWithSpread(FVector ForwardVector)
+{
+	if (bWeaponHasNoSpread)
+	{
+		return ForwardVector;
+	}
+
+	return FMath::VRandCone(ForwardVector, FirstShotBaseSpread);
 }
 
 void AFPSWeapon::ShowDebugHitLocation(FVector StartLocation, FVector EndLocation)
