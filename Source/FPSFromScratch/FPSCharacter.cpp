@@ -153,7 +153,7 @@ void AFPSCharacter::OnFinishFireWeapon()
 {
 	bFireWeaponKeyIsPressed = false;
 
-	GetWorldTimerManager().ClearTimer(EquippedWeapon->TimerHandle_HandleFiring);
+	//GetWorldTimerManager().ClearTimer(EquippedWeapon->TimerHandle_HandleFiring);
 }
 
 // Called every frame

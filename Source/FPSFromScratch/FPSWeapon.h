@@ -138,7 +138,18 @@ public:
 
 	bool bFinishedCompensatingRecoil;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
+	class UCurveVector* RecoilPatternCurve;
+
 	FRotator TotalRecoilAdded;
+
+	///* This is a float between 0 and 1 which represents our position
+	// * or time value in our RecoilPatternCurve. Plugging this into our
+	// * RecoilPatternCurve->GetVectorValue will yield the current recoil as a vector.  */
+	//float RecoilPatternPercent;
+
+	/* Every time we shoot, this is incremented by our fire rate. When we stop shooting, this is decremented. This is used to calculate where we are in our recoil pattern. */
+	float RecoilPatternTimeAccumulator;
 
 	///////// WEAPON ACCURACY //////////////////////
 
@@ -202,14 +213,17 @@ public:
 	/// On shot
 	void AddRecoil();
 
-	/* This is what will give us a recoil pattern. Based on the current total recoil added, we essentially know where we are in the recoil pattern and can find out how much recoil should be applied to the next shot fired. */
-	// FRotator GetRecoilToAdd();
-
 	// On Tick
 	void CheckIfRecoilFinishedCompensating();
 
 	// On Tick
 	void RecoverRecoil(float DeltaTime);
+
+	/* Gets the recoil to be added for the next shot from our recoil curve */
+	FRotator GetRecoilValueToAdd();
+
+	/* Updates our position in the recoil pattern based on whether or not we are shooting. */
+	void UpdateRecoilPatternTimeAccumulator(float DeltaTime);
 
 	///////////////// WEAPON ACCURACY /////////////////////////////
 

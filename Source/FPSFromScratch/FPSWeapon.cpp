@@ -11,7 +11,7 @@
 #include "Camera/CameraComponent.h"
 #include "TimerManager.h"
 #include "Engine.h"
-#include "Math/RandomStream.h"
+#include "Curves/CurveVector.h"
 
 // Sets default values
 AFPSWeapon::AFPSWeapon()
@@ -36,7 +36,7 @@ AFPSWeapon::AFPSWeapon()
 	TimeBetweenShots = 0.100f;
 	StartingNumRoundsTotal = 120;
 
-	bUnlimitedAmmo = false;
+	bUnlimitedAmmo = true;
 
 	//RecoilAmount = 0.25f;
 	//RecoilAmount = 0.85f;
@@ -55,7 +55,9 @@ AFPSWeapon::AFPSWeapon()
 
 	// The first shot base spread in radians
 	FirstShotBaseSpread = 0.005f;
-	bWeaponHasNoSpread = false;
+	bWeaponHasNoSpread = true;
+
+	RecoilPatternTimeAccumulator = 0.f;
 }
 
 // Called when the game starts or when spawned
@@ -81,6 +83,8 @@ void AFPSWeapon::Tick(float DeltaTime)
 	// Recoil recovery -- brings camera pitch closer to zero
 	//HandleCameraRecoilRecovery(RecoilRecoveryRate, DeltaTime);
 	RecoverRecoil(DeltaTime);
+
+	UpdateRecoilPatternTimeAccumulator(DeltaTime);
 }
 
 void AFPSWeapon::InitWeaponToPlayer(class AFPSCharacter* Player)
@@ -146,6 +150,8 @@ void AFPSWeapon::OnFire()
 		{
 			ConsumeAmmo();
 		}
+
+		RecoilPatternTimeAccumulator = FMath::Clamp(RecoilPatternTimeAccumulator + TimeBetweenShots, 0.f, 3.f);
 		
 		AddRecoil();
 
@@ -378,31 +384,30 @@ void AFPSWeapon::AddRecoil()
 	{
 		FRotator CurrentRotation = PlayerController->GetControlRotation();
 
-		FRotator NewRotation = CurrentRotation + FRotator(RecoilAmount, 0.f, 0.f);
+		FRotator NewRotation = CurrentRotation + GetRecoilValueToAdd();
 
-		TotalRecoilAdded += FRotator(RecoilAmount, 0.f, 0.f);
+		FString RecoilValueToAddString(GetRecoilValueToAdd().ToString());
+
+		uint64 RecoilValueToAddId = 777;
+
+		GEngine->AddOnScreenDebugMessage(RecoilValueToAddId, 15.0f, FColor::Blue, *RecoilValueToAddString);
+
+		TotalRecoilAdded += GetRecoilValueToAdd();
 
 		PlayerController->SetControlRotation(NewRotation);
 	}
 }
 
-//FRotator AFPSWeapon::GetRecoilToAdd()
-//{
-//	/*if (TotalRecoilAdded >= (FRotator())
-//	{
-//	}*/
-//}
-
 // On Tick
 void AFPSWeapon::CheckIfRecoilFinishedCompensating()
 {
-	if (TotalRecoilAdded.Pitch > 0.f)
+	if (TotalRecoilAdded.IsZero())
 	{
-		bFinishedCompensatingRecoil = false;
+		bFinishedCompensatingRecoil = true;
 	}
 	else
 	{
-		bFinishedCompensatingRecoil = true;
+		bFinishedCompensatingRecoil = false;
 	}
 }
 
@@ -456,6 +461,42 @@ void AFPSWeapon::RecoverRecoil(float DeltaTime)
 	else if (bFinishedCompensatingRecoil)
 	{
 		TotalRecoilAdded = FRotator(0.f, 0.f, 0.f);
+	}
+}
+
+FRotator AFPSWeapon::GetRecoilValueToAdd()
+{
+	if (RecoilPatternCurve)
+	{
+		UCurveVector* RecoilCurve = Cast<UCurveVector>(RecoilPatternCurve);
+
+		if (RecoilCurve)
+		{
+			// This is how "far we are" through our recoil pattern as a float between 0 and 1
+			float RecoilPatternPercentFloat = RecoilPatternTimeAccumulator / (MagazineCapacity * TimeBetweenShots);
+
+			FString RecoilPatternPercentFloatString = FString::SanitizeFloat(RecoilPatternPercentFloat);
+
+			uint64 RecoilPatternPercentFloatId = 666;
+
+			GEngine->AddOnScreenDebugMessage(RecoilPatternPercentFloatId, 15.0f, FColor::Green, *RecoilPatternPercentFloatString);
+
+			FVector RecoilVector = RecoilCurve->GetVectorValue(RecoilPatternPercentFloat);
+
+			// To get the recoil value at a time (or percentage) between 0-1 we use GetVectorValue
+			//return (RecoilCurve->GetVectorValue(RecoilPatternPercentFloat)).Rotation();
+			return FRotator(RecoilVector.Y, RecoilVector.X, 0.f);
+		}
+	}
+
+	return FRotator(0.f, 0.f, 0.f);
+}
+
+void AFPSWeapon::UpdateRecoilPatternTimeAccumulator(float DeltaTime)
+{
+	if (OwningPlayer && !(OwningPlayer->bFireWeaponKeyIsPressed))
+	{
+		RecoilPatternTimeAccumulator = FMath::Clamp(RecoilPatternTimeAccumulator - (TimeBetweenShots * TimeBetweenShots), 0.f, 3.f);
 	}
 }
 
