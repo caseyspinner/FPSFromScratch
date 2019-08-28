@@ -108,45 +108,25 @@ public:
 	/* When the weapon is fired, this is set to false, and set to true again once enough time has elapsed to satisfy the set fire rate. */
 	bool bWeaponCanFire;
 
-	/* The amount of recoil added per shot to the camera pitch */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay")
-	float RecoilAmount;
-
 	/* The rate at which the weapon/camera recovers from recoil */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay")
 	float RecoilRecoveryRate;
 
-	/* The current pitch modifier for the camera based on weapon recoil */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gameplay")
-	float CurrentRecoilCameraPitchModifier;
-
-	/* How we tell if our weapon is recoiling and recoil recovery is still needed */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gameplay")
-	bool bIsRecoiling;
-
 	/* This is the degree of tolerance given between timed shots due to the fact that timers in UE4 are not 100% accurate. The greater the value, the less-consistent our rate of fire is, the lower the value, the more likely our full-auto is to malfunction and not allow shooting. */
 	float RateOfFireForgiveness;
 
-	/* When a shot is fired and the gun is not recoiling, we record the origin of point of aim, so that the new point of aim (after recoil) can be interpolated back to the origin (recoil recovery) */
-	FRotator AimPointOrigin;
-
-	/* This records the rotation that has been added by recoil. */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gameplay")
-	FRotator AddedRecoilDelta;
-
 	FORCEINLINE void SetInstigator(AController* Inst) { WeaponInstigator = Inst; }
 
+	/* How we tell if our weapon is recoiling and recoil recovery is still needed */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gameplay")
 	bool bFinishedCompensatingRecoil;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
 	class UCurveVector* RecoilPatternCurve;
 
+	/* This records the rotation that has been added by recoil. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Gameplay")
 	FRotator TotalRecoilAdded;
-
-	///* This is a float between 0 and 1 which represents our position
-	// * or time value in our RecoilPatternCurve. Plugging this into our
-	// * RecoilPatternCurve->GetVectorValue will yield the current recoil as a vector.  */
-	//float RecoilPatternPercent;
 
 	/* Every time we shoot, this is incremented by our fire rate. When we stop shooting, this is decremented. This is used to calculate where we are in our recoil pattern. */
 	float RecoilPatternTimeAccumulator;
@@ -156,6 +136,10 @@ public:
 	/* Half angle of the cone encompassing the weapon spread on first shot. The first shot will land somewhere within the cone of this half-angle in radians.  */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay | Accuracy")
 	float FirstShotBaseSpread;
+
+	/* The accuracy penalty given when the player is moving */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay | Accuracy")
+	float MovementSpreadPenalty;
 
 	/* Cheat for no spread */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Gameplay | Cheats")
@@ -207,9 +191,6 @@ public:
 
 	//////////////// WEAPON RECOIL ////////////////////////
 
-	// On Tick - INACTIVE - May revisit later for recoil smoothing
-	void HandleCameraRecoilRecovery(float RecoveryRate, float DeltaTime);
-
 	/// On shot
 	void AddRecoil();
 
@@ -227,7 +208,8 @@ public:
 
 	///////////////// WEAPON ACCURACY /////////////////////////////
 
-	FVector GetForwardVectorWithSpread(FVector ForwardVector);
+	/* Returns our camera forward vector adjusted for weapon inaccuracy */
+	FVector GetVectorAdjustedForSpread(FVector InVector);
 
 	/**
 	 * This is mainly for showing how traces function for the firing of

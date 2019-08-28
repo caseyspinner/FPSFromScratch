@@ -38,25 +38,18 @@ AFPSWeapon::AFPSWeapon()
 
 	bUnlimitedAmmo = true;
 
-	//RecoilAmount = 0.25f;
-	//RecoilAmount = 0.85f;
-	RecoilAmount = 2.75f;
-	CurrentRecoilCameraPitchModifier = 0.0f;
-	//RecoilRecoveryRate = 0.95f;
 	RecoilRecoveryRate = 20.f;
-	bIsRecoiling = false;
 	RateOfFireForgiveness = 0.0001f;
 
-	AddedRecoilDelta = FRotator(0.f, 0.f, 0.f);
-
-	//
 	bFinishedCompensatingRecoil = true;
 	TotalRecoilAdded = FRotator(0.f, 0.f, 0.f);
 
 	// The first shot base spread in radians
 	FirstShotBaseSpread = 0.005f;
+	MovementSpreadPenalty = 0.00025f;
 	bWeaponHasNoSpread = true;
 
+	// We start off at the beginning of our recoil pattern
 	RecoilPatternTimeAccumulator = 0.f;
 }
 
@@ -76,18 +69,17 @@ void AFPSWeapon::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// Adds the adjusted pitch to the camera due to recoil
-	//AdjustCameraPitchForRecoil(DeltaTime);
+	// Sets bFinishedCompensatingRecoil based on whether or not all recoil has been compensated for
 	CheckIfRecoilFinishedCompensating();
 
-	// Recoil recovery -- brings camera pitch closer to zero
-	//HandleCameraRecoilRecovery(RecoilRecoveryRate, DeltaTime);
+	// Recovers Controller rotation which was offset by recoil
 	RecoverRecoil(DeltaTime);
 
+	// When we aren't shooting, we regress through our recoil pattern towards its starting point
 	UpdateRecoilPatternTimeAccumulator(DeltaTime);
 }
 
-void AFPSWeapon::InitWeaponToPlayer(class AFPSCharacter* Player)
+void AFPSWeapon::InitWeaponToPlayer(AFPSCharacter* Player)
 {
 	if (Player)
 	{
@@ -197,12 +189,12 @@ void AFPSWeapon::StartWeaponTrace()
 			/* Here we get the forward vector of the camera */
 			FVector CameraForwardVector = FirstPersonCameraComponent->GetForwardVector();
 
-			/*FString ForwardVectorLocationString(CameraForwardVector.ToString());
-
-			UE_LOG(LogTemp, Warning, TEXT("ForwardVectorLocation is %s"), *ForwardVectorLocationString);*/
+			/* Our shots will land 2x the vector between our base rotation and the offset from recoil. To visualize this,
+			 * if the player shoots at the wall without manually moving their crosshair, the bullet will land 2x the vector between their original crosshair position and their new crosshair position. To achieve this, we rotate our forward vector by the current value of TotalRecoilAdded. */
+			FVector OffsetForwardVector = !bFinishedCompensatingRecoil ? TotalRecoilAdded.RotateVector(CameraForwardVector) : CameraForwardVector;
 
 			// We add inaccuracy to our forward vector
-			FVector ForwardVectorWithSpread = GetForwardVectorWithSpread(CameraForwardVector);
+			FVector ForwardVectorWithSpread = GetVectorAdjustedForSpread(OffsetForwardVector);
 
 			/**
 			 * Now we will multiply the vector by some scalar to designate the length
@@ -226,10 +218,6 @@ void AFPSWeapon::StartWeaponTrace()
 			{
 				World->LineTraceSingleByChannel(HitResult, TraceStartLocation, TraceEndLocation, ECC_Visibility, CollisionQueryParams, CollisionResponseParams);
 			}
-
-			/*FString TraceStartLocationString(TraceStartLocation.ToString());
-
-			UE_LOG(LogTemp, Warning, TEXT("TraceStartLocation is %s"), *TraceStartLocationString);*/
 
 			FVector HitLocation = HitResult.Location;
 
@@ -342,37 +330,6 @@ bool AFPSWeapon::CanReload()
 bool AFPSWeapon::WeaponCanFireAgain(float CurrentTime, float LastTimeFired, float MinTimeBetweenShots)
 {
 	return ((CurrentTime - LastTimeFired >= MinTimeBetweenShots) || (FMath::IsNearlyEqual((CurrentTime - LastFireTime), MinTimeBetweenShots, RateOfFireForgiveness)));
-}
-
-// On Tick - INACTIVE - May revisit later for recoil smoothing
-void AFPSWeapon::HandleCameraRecoilRecovery(float RecoveryRate, float DeltaTime)
-{
-	if (CurrentRecoilCameraPitchModifier > 0.0f && bIsRecoiling)
-	{
-		AMainPlayerController* PlayerController = OwningPlayer->GetMainPlayerController();
-
-		if (PlayerController->IsLocalPlayerController())
-		{
-			FRotator ControllerRotation = PlayerController->GetControlRotation();
-
-			FRotator TargetRotation = ControllerRotation - AddedRecoilDelta;
-
-			FRotator RecoveringRotation = FMath::RInterpTo(ControllerRotation, TargetRotation, DeltaTime, RecoilRecoveryRate);
-
-			PlayerController->SetControlRotation(RecoveringRotation);
-
-			if (RecoveringRotation == TargetRotation)
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Recoil Recovered!"));
-				bIsRecoiling = false;
-				AddedRecoilDelta = FRotator(0.f, 0.f, 0.f);
-				CurrentRecoilCameraPitchModifier = 0.0f;
-			}
-		}
-
-		CurrentRecoilCameraPitchModifier -= (AddedRecoilDelta.Pitch * RecoilRecoveryRate * DeltaTime);
-		////CurrentRecoilCameraPitchModifier -= (RecoilRecoveryRate * DeltaTime);
-	}
 }
 
 // On weapon fire
@@ -500,14 +457,30 @@ void AFPSWeapon::UpdateRecoilPatternTimeAccumulator(float DeltaTime)
 	}
 }
 
-FVector AFPSWeapon::GetForwardVectorWithSpread(FVector ForwardVector)
+FVector AFPSWeapon::GetVectorAdjustedForSpread(FVector InVector)
 {
 	if (bWeaponHasNoSpread)
 	{
-		return ForwardVector;
+		return InVector;
 	}
 
-	return FMath::VRandCone(ForwardVector, FirstShotBaseSpread);
+	float EffectiveSpread = FirstShotBaseSpread;
+
+	if (OwningPlayer)
+	{
+		// Adds spread penalty based on the player's movement velocity.
+		float PlayerVelocity = OwningPlayer->GetVelocity().Size();
+
+		FString PlayerVelocityString = FString::SanitizeFloat(PlayerVelocity);
+
+		uint64 PlayerVelocityStringId = 888;
+
+		GEngine->AddOnScreenDebugMessage(PlayerVelocityStringId, 15.0f, FColor::Yellow, *PlayerVelocityString);
+
+		EffectiveSpread += PlayerVelocity * MovementSpreadPenalty;
+	}
+
+	return FMath::VRandCone(InVector, EffectiveSpread);
 }
 
 void AFPSWeapon::ShowDebugHitLocation(FVector StartLocation, FVector EndLocation)
