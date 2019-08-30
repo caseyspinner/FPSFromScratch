@@ -186,15 +186,24 @@ void AFPSWeapon::StartWeaponTrace()
 			 */
 			FVector TraceStartLocation = FirstPersonCameraComponent->GetComponentLocation();
 
-			/* Here we get the forward vector of the camera */
-			FVector CameraForwardVector = FirstPersonCameraComponent->GetForwardVector();
+			/* We get the transform of the camera */
+			FTransform CameraTransform = FirstPersonCameraComponent->GetComponentTransform();
 
+			FQuat CameraQuat = CameraTransform.GetRotation();
+
+			
 			/* Our shots will land 2x the vector between our base rotation and the offset from recoil. To visualize this,
 			 * if the player shoots at the wall without manually moving their crosshair, the bullet will land 2x the vector between their original crosshair position and their new crosshair position. To achieve this, we rotate our forward vector by the current value of TotalRecoilAdded. */
-			FVector OffsetForwardVector = !bFinishedCompensatingRecoil ? TotalRecoilAdded.RotateVector(CameraForwardVector) : CameraForwardVector;
+
+			if (!bFinishedCompensatingRecoil)
+			{
+				FRotator CameraAdjustedRotator = CameraQuat.Rotator() + TotalRecoilAdded;
+
+				CameraQuat = FQuat(CameraAdjustedRotator);
+			}
 
 			// We add inaccuracy to our forward vector
-			FVector ForwardVectorWithSpread = GetVectorAdjustedForSpread(OffsetForwardVector);
+			FVector ForwardVectorWithSpread = GetVectorAdjustedForSpread(CameraQuat.GetForwardVector());
 
 			/**
 			 * Now we will multiply the vector by some scalar to designate the length
